@@ -7,9 +7,11 @@ from __future__ import print_function
 # Imports
 import numpy as np
 import tensorflow as tf
+from pprint import pprint
+import matplotlib.pyplot as plt
 
 tf.logging.set_verbosity(tf.logging.INFO)
-
+tf.device("/gpu:0")
 
 def cnn_model_fn(features, labels, mode):
     """Model function for CNN."""
@@ -35,6 +37,8 @@ def cnn_model_fn(features, labels, mode):
         kernel_size=[5, 5],
         padding="same",
         activation=tf.nn.relu)
+
+    # Pooling Layer #2
     pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
 
     # Dense Layer
@@ -82,43 +86,55 @@ def cnn_model_fn(features, labels, mode):
 
 def main(unused_argv):
 
+    if_plot = False
+
     # Load training and eval data
     mnist = tf.contrib.learn.datasets.load_dataset("mnist")
     train_data = mnist.train.images  # Returns np.array
     train_labels = np.asarray(mnist.train.labels, dtype=np.int32)
     eval_data = mnist.test.images  # Returns np.array
     eval_labels = np.asarray(mnist.test.labels, dtype=np.int32)
+    
+    # Initialize array to store loss and accuracy
+    losses = np.zeros((100,1), dtype='float')
+    accus = np.zeros((100,1), dtype='float')
 
     # Create the Estimator
-    mnist_classifier = tf.estimator.Estimator(
-        model_fn=cnn_model_fn, model_dir="/tmp/mnist_convnet_model")
+    mnist_classifier = tf.estimator.Estimator(model_fn=cnn_model_fn, model_dir="./mnist_models/")
     tensors_to_log = {"loss": "loss"}
-    logging_hook = tf.train.LoggingTensorHook(
-        tensors=tensors_to_log, every_n_iter=500)
+    logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, at_end=True)
 
-    # Train the model
+    # Train data loader
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
         x={"x": train_data},
         y=train_labels,
         batch_size=100,
         num_epochs=None,
         shuffle=True)
-
-    mnist_classifier.train(
-        input_fn=train_input_fn,
-        steps=30000,
-        hooks=[logging_hook])
-
-    # Evaluate the model and print results
+    
     eval_input_fn = tf.estimator.inputs.numpy_input_fn(
         x={"x": eval_data},
         y=eval_labels,
         num_epochs=1,
         shuffle=False)
 
-    eval_results = mnist_classifier.evaluate(input_fn=eval_input_fn)
-    print(eval_results)
+    for given_iter in range(1,100):
+        # Train for some number of iters
+        mnist_classifier.train(
+            input_fn=train_input_fn,
+            steps=200,
+            hooks=[logging_hook])
 
+        eval_results = mnist_classifier.evaluate(input_fn=eval_input_fn)
+        losses[given_iter] = eval_results['loss']
+        accus[given_iter] = eval_results['accuracy']
 
+    if if_plot == True:
+        xx = range(1,100)
+        plt.plot(xx, losses, 'r--', accus, 'g^')
+        plt.show()
+
+    print(losses)
+    print(accus)
 if __name__ == "__main__":
     tf.app.run()

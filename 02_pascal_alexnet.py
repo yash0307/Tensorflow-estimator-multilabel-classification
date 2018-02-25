@@ -10,12 +10,11 @@ import argparse
 import os.path as osp
 from PIL import Image
 from functools import partial
-import matplotlib.pyplot as plt
+
 from eval import compute_map
 #import models
 
 tf.logging.set_verbosity(tf.logging.INFO)
-tf.device("/gpu:0")
 
 CLASS_NAMES = [
     'aeroplane',
@@ -47,49 +46,43 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     input_layer = tf.reshape(features["x"], [-1, 256, 256, 3])
     valid = features["w"]
 
-    # Convolutional Layer #1
-    conv1 = tf.layers.conv2d(
-        inputs=input_layer,
-        filters=32,
-        kernel_size=[5, 5],
-        padding="same",
-        activation=tf.nn.relu)
+    conv1 = tf.layers.conv2d(inputs=input_layer, filters=96, kernel_size=[11, 11], strides=4, padding="valid", activation=tf.nn.relu)
+    pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[3, 3], strides=2)
 
-    # Pooling Layer #1
-    pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
+    conv2 = tf.layers.conv2d(inputs=pool1, filters=256, kernel_size=[5, 5], strides=1, padding="same", activation=tf.nn.relu)
+    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[3, 3], strides=2)
 
-    # Convolutional Layer #2 and Pooling Layer #2
-    conv2 = tf.layers.conv2d(
-        inputs=pool1,
-        filters=64,
-        kernel_size=[5, 5],
-        padding="same",
-        activation=tf.nn.relu)
+    conv3 = tf.layers.conv2d(inputs=pool2, filters=384, kernel_size=[3, 3], strides=1, padding="same", activation=tf.nn.relu)
+    conv4 = tf.layers.conv2d(inputs=conv3, filters=384, kernel_size=[3, 3], strides=1, padding="same", activation=tf.nn.relu)
+    conv5 = tf.layers.conv2d(inputs=conv4, filters=256, kernel_size=[3, 3], strides=1, padding="same", activation=tf.nn.relu)
+    pool3 = tf.layers.max_pooling2d(inputs=conv5, pool_size=[3, 3], strides=2)
 
-    # Pooling Layer #2
-    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+    pool3_flat = tf.reshape(pool2, [-1, 64 * 64 * 64]) # Check this once !
+    dense1 = tf.layers.dense(inputs=pool3_flat, units=4096, activation=tf.nn.relu)
+    dropout1 = tf.layers.dropout(inputs=dense1, rate=0.5, training=mode == tf.estimator.ModeKeys.TRAIN)
+    dense2 = tf.layers.dense(inputs=dropout1, units=4096, activation=tf.nn.relu)
+    dropout2 = tf.layers.dropout(inputs=dense2, rate=0.5, training=mode == tf.estimator.ModeKeys.TRAIN)
 
-    # Dense Layer
-    pool2_flat = tf.reshape(pool2, [-1, 64 * 64 * 64])
-    dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu)
-    dropout = tf.layers.dropout(inputs=dense, rate=0.4, training=mode == tf.estimator.ModeKeys.TRAIN)
-
-    # Logits Layer
-    logits = tf.layers.dense(inputs=dropout, units=num_classes)
+    logits = tf.layers.dense(inputs=dropout2, units=num_classes)
 
     predictions = {"probabilities": tf.sigmoid(logits, name="sigmoid_tensor")}
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
+    # Calculate Loss (for both TRAIN and EVAL modes)
+    loss = tf.identity(tf.losses.sigmoid_cross_entropy(labels, logits=logits), name='loss')
+
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
-        loss_train = tf.identity(tf.losses.sigmoid_cross_entropy(labels, logits=logits), name='loss_train')
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
-        train_op = optimizer.minimize(loss=loss_train, global_step=tf.train.get_global_step())
-        tensors_to_log = {"loss_train": loss_train}
-        logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, every_n_iter=1)
-        return tf.estimator.EstimatorSpec(mode=mode, loss=loss_train, train_op=train_op, training_hooks=[logging_hook])
+        optimizer = tf.train.MomentumOptimizer(learning_rate=0.001)
+        train_op = optimizer.minimize(loss=loss,global_step=tf.train.get_global_step())
+        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+
+    # Add evaluation metrics (for EVAL mode)
+    eval_metric_ops = {"mAP": np.mean(compute_map(labels, predictions["probabilities"], valid))}
+    return tf.estimator.EstimatorSpec(mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
+
 
 def load_pascal(data_dir, split='train'):
 
@@ -140,7 +133,7 @@ def load_pascal(data_dir, split='train'):
                 weights[given_im][given_cls] = 0
             elif cls_ann[given_im] == -1:
                 labels[given_im][given_cls] = 0
-                weights[given_im][given_cls] = 1
+                weights[given_im][given_cls] = 0
             else:
                 print('Something wrong in annotations: ' + str(given_im) + ' | ' + str(cls_name))
                 sys.exit(1)
@@ -169,9 +162,7 @@ def _get_el(arr, i):
 def main():
 
     args = parse_args()
-    BATCH_SIZE = 10
-
-    map_array = np.zeros((10,1), dtype='float')
+    BATCH_SIZE = 128
 
     train_data, train_labels, train_weights = load_pascal(args.data_dir, split='trainval')
     eval_data, eval_labels, eval_weights = load_pascal(args.data_dir, split='test')
@@ -181,8 +172,8 @@ def main():
         num_classes=train_labels.shape[1]),
         model_dir="./pascal_models/")
 
-    tensors_to_log = {"loss_train": "loss_train"}
-    logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, every_n_iter=20)
+    tensors_to_log = {"loss": "loss"}
+    logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, at_end=True)
 
     # Train the model
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
@@ -200,16 +191,20 @@ def main():
         shuffle=False)
 
     for given_iter in range(0,10):
-        pascal_classifier.train(input_fn=train_input_fn, steps=100)
+        pascal_classifier.train(input_fn=train_input_fn, steps=100, hooks=[logging_hook])
+        pascal_classifier.evaluate(input_fn=eval_input_fn)
+
         pred = list(pascal_classifier.predict(input_fn=eval_input_fn))
         pred = np.stack([p['probabilities'] for p in pred])
+        rand_AP = compute_map(eval_labels, np.random.random(eval_labels.shape),eval_weights, average=None)
+        print('Random AP: {} mAP'.format(np.mean(rand_AP)))
+        gt_AP = compute_map(eval_labels, eval_labels, eval_weights, average=None)
+        print('GT AP: {} mAP'.format(np.mean(gt_AP)))
         AP = compute_map(eval_labels, pred, eval_weights, average=None)
         print('Obtained {} mAP'.format(np.mean(AP)))
-        map_array[given_iter] = np.mean(AP)
-
-    xx = range(1,11)
-    plt.plot(xx, map_array, 'r--')
-    plt.show()
+        print('per class:')
+        for cid, cname in enumerate(CLASS_NAMES):
+            print('{}: {}'.format(cname, _get_el(AP, cid)))
 
 if __name__ == "__main__":
     main()
