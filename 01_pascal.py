@@ -82,14 +82,16 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
+    loss = tf.identity(tf.losses.sigmoid_cross_entropy(labels, logits=logits), name='loss')
+    tf.summary.scalar('loss', loss)
+    
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
-        loss_train = tf.identity(tf.losses.sigmoid_cross_entropy(labels, logits=logits), name='loss_train')
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
-        train_op = optimizer.minimize(loss=loss_train, global_step=tf.train.get_global_step())
-        tensors_to_log = {"loss_train": loss_train}
-        logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, every_n_iter=1)
-        return tf.estimator.EstimatorSpec(mode=mode, loss=loss_train, train_op=train_op, training_hooks=[logging_hook])
+        train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
+        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+
+    #return tf.estimator.EstimatorSpec(mode=mode, loss=tf.identity(tf.losses.sigmoid_cross_entropy(labels, logits=logits)))
 
 def load_pascal(data_dir, split='train'):
 
@@ -181,8 +183,8 @@ def main():
         num_classes=train_labels.shape[1]),
         model_dir="./pascal_models/")
 
-    tensors_to_log = {"loss_train": "loss_train"}
-    logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, every_n_iter=20)
+    tensors_to_log = {"loss": "loss"}
+    logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, every_n_iter=10)
 
     # Train the model
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
@@ -200,7 +202,8 @@ def main():
         shuffle=False)
 
     for given_iter in range(0,10):
-        pascal_classifier.train(input_fn=train_input_fn, steps=100)
+        pascal_classifier.train(input_fn=train_input_fn, steps=100, hooks=[logging_hook])
+        #pascal_classifier.evaluate(input_fn=train_input_fn, steps=10)
         pred = list(pascal_classifier.predict(input_fn=eval_input_fn))
         pred = np.stack([p['probabilities'] for p in pred])
         AP = compute_map(eval_labels, pred, eval_weights, average=None)
