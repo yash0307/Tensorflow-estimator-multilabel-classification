@@ -48,32 +48,14 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
 
     # Do data augmentation here !
     if mode == tf.estimator.ModeKeys.PREDICT:
-        unstack_input = tf.unstack(input_layer, axis=0)
-        final_input = tf.TensorArray(dtype=tf.int32, size=input_layer.shape[0], infer_shape=True)
-        #final_input.close().mark_used()
-        giv_idx = 0
-        for im_tf in unstack_input:
-            aug_im = tf.image.central_crop(im_tf, float(0.875))
-            final_input.write(giv_idx, aug_im)
-            giv_idx += 1
-        final_input = tf.reshape(final_input.stack(), [input_layer.shape[0], 224, 224, 3])
-    if mode == tf.estimator.ModeKeys.TRAIN:
-        unstack_input = tf.unstack(input_layer, axis=0)
-        final_input = tf.TensorArray(dtype=tf.int32, size=input_layer.shape[0], infer_shape=True)
-        #final_input.close().mark_used()
-        giv_idx = 0
-        for im_tf in unstack_input:
-            aug_im = tf.image.random_flip_left_right(im_tf)
-            aug_im = tf.random_crop(aug_im, size=[224,224,3])
-            final_input.write(giv_idx, aug_im)
-            giv_idx += 1
-        final_input = tf.reshape(final_input.stack(), [input_layer.shape[0], 224, 224, 3])
+        final_input = tf.map_fn(lambda im_tf: tf.image.central_crop(im_tf, float(0.875)), input_layer)
 
-    del input_layer
-    input_layer = final_input
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        final_input = tf.map_fn(lambda im_tf: tf.image.random_flip_left_right(im_tf), input_layer)
+        final_input = tf.map_fn(lambda im_tf: tf.random_crop(im_tf, size=[224,224,3]), final_input)
 
     # AlexNet archirecture
-    conv1 = tf.layers.conv2d(inputs=input_layer, filters=96, kernel_size=[11, 11], strides=4, padding="valid", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
+    conv1 = tf.layers.conv2d(inputs=final_input, filters=96, kernel_size=[11, 11], strides=4, padding="valid", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
     pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[3, 3], strides=2)
     conv2 = tf.layers.conv2d(inputs=pool1, filters=256, kernel_size=[5, 5], strides=1, padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
     pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[3, 3], strides=2)
@@ -97,11 +79,10 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
         tf.summary.scalar('Train Loss', loss)
+        lr = tf.train.exponential_decay(learning_rate=0.001,global_step=tf.train.get_global_step(),decay_steps=10000,decay_rate=0.5)
+        tf.summary.scalar('Learning rate', lr)
         optimizer = tf.train.MomentumOptimizer(
-                    learning_rate=tf.train.exponential_decay(learning_rate=0.001,
-                                  global_step=tf.train.get_global_step(),
-                                  decay_steps=10000,
-                                  decay_rate=0.5),
+                    learning_rate=lr,
                     momentum=0.9)
         train_op = optimizer.minimize(loss=loss,global_step=tf.train.get_global_step())
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
@@ -186,7 +167,9 @@ def main():
     args = parse_args()
     BATCH_SIZE = 10
 
-    map_list = np.zeros((400,1), dtype='float')
+
+    map_list = np.zeros((40,1), dtype='float')
+
     train_data, train_labels, train_weights = load_pascal(args.data_dir, split='trainval')
     eval_data, eval_labels, eval_weights = load_pascal(args.data_dir, split='test')
 
@@ -220,7 +203,11 @@ def main():
         AP = compute_map(eval_labels, pred, eval_weights, average=None)
         print('\nmAP : ' + str(np.mean(AP)) + '\n')
         map_list[given_iter] = np.mean(AP)
-
-    print(map_list)
+    xx = range(1,41)
+    plt.plot(xx, map_list, 'r--')
+    plt.xlabel('i*1000 iterations')
+    plt.ylabel('mAP')
+    plt.savefig('pascal_alexnet.png')
+    
 if __name__ == "__main__":
     main()
