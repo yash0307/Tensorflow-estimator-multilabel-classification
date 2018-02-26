@@ -79,7 +79,7 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
         tf.summary.scalar('Train Loss', loss)
-        lr = tf.train.exponential_decay(learning_rate=0.001,global_step=tf.train.get_global_step(),decay_steps=10000,decay_rate=0.5)
+        lr = tf.train.exponential_decay(learning_rate=0.001,global_step=tf.train.get_global_step(),decay_steps=10000,decay_rate=0.5, staircase=True)
         tf.summary.scalar('Learning rate', lr)
         optimizer = tf.train.MomentumOptimizer(
                     learning_rate=lr,
