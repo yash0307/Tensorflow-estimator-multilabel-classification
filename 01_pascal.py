@@ -83,10 +83,10 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
     loss = tf.identity(tf.losses.sigmoid_cross_entropy(labels, logits=logits), name='loss')
-    tf.summary.scalar('loss', loss)
     
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
+        tf.summary.scalar('train loss', loss)
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
         train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
@@ -212,7 +212,10 @@ def main():
 
     xx = range(1,11)
     plt.plot(xx, map_array, 'r--')
-    plt.show()
+    plt.xlabel('i*100 iterations')
+    plt.ylabel('mAP')
+    plt.savefig('01_map.png')
+    #plt.show()
 
 if __name__ == "__main__":
     main()
