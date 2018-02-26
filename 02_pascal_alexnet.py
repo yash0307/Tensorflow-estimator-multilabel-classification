@@ -47,55 +47,47 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     valid = features["w"]
 
     # Do data augmentation here !
-    unstack_input = tf.unstack(input_layer, axis=0)
-    print(input_layer.shape[0])
-    final_input = tf.TensorArray(dtype=tf.int32, size=input_layer.shape[0], infer_shape=True)
-    #final_input.close().mark_used()
-    giv_idx = 0
-    for i in unstack_input:
-        final_input.write(giv_idx, i)
-        giv_idx += 1
-    print(giv_idx)
-    final_input = tf.reshape(final_input.stack(), [input_layer.shape[0], 256, 256, 3])
-    print(final_input)
-    print(final_input.get_shape())
-    unpack_input = tf.unstack(final_input, axis=0)
-    giv_idx = 0 
-    for i in unstack_input:
-        print(giv_idx)
-        giv_idx+=1
-    sys.exit(1)
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        unstack_input = tf.unstack(input_layer, axis=0)
+        final_input = tf.TensorArray(dtype=tf.int32, size=input_layer.shape[0], infer_shape=True)
+        #final_input.close().mark_used()
+        giv_idx = 0
+        for im_tf in unstack_input:
+            aug_im = tf.image.central_crop(im_tf, float(0.875))
+            final_input.write(giv_idx, aug_im)
+            giv_idx += 1
+        final_input = tf.reshape(final_input.stack(), [input_layer.shape[0], 224, 224, 3])
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        unstack_input = tf.unstack(input_layer, axis=0)
+        final_input = tf.TensorArray(dtype=tf.int32, size=input_layer.shape[0], infer_shape=True)
+        #final_input.close().mark_used()
+        giv_idx = 0
+        for im_tf in unstack_input:
+            aug_im = tf.image.random_flip_left_right(im_tf)
+            aug_im = tf.random_crop(aug_im, size=[224,224,3])
+            final_input.write(giv_idx, aug_im)
+            giv_idx += 1
+        final_input = tf.reshape(final_input.stack(), [input_layer.shape[0], 224, 224, 3])
+
+    del input_layer
+    input_layer = final_input
 
     # AlexNet archirecture
     conv1 = tf.layers.conv2d(inputs=input_layer, filters=96, kernel_size=[11, 11], strides=4, padding="valid", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
-
     pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[3, 3], strides=2)
-
     conv2 = tf.layers.conv2d(inputs=pool1, filters=256, kernel_size=[5, 5], strides=1, padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
-
     pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[3, 3], strides=2)
-
     conv3 = tf.layers.conv2d(inputs=pool2, filters=384, kernel_size=[3, 3], strides=1, padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
-
     conv4 = tf.layers.conv2d(inputs=conv3, filters=384, kernel_size=[3, 3], strides=1, padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
-
     conv5 = tf.layers.conv2d(inputs=conv4, filters=256, kernel_size=[3, 3], strides=1, padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
     pool3 = tf.layers.max_pooling2d(inputs=conv5, pool_size=[3, 3], strides=2)
-
-    pool3_flat = tf.reshape(pool3, [-1, 6 * 6 * 256]) # Check this once !
-
+    pool3_flat = tf.reshape(pool3, [-1, 5 * 5 * 256]) # Check this once !
     dense1 = tf.layers.dense(inputs=pool3_flat, units=4096, activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
-
     dropout1 = tf.layers.dropout(inputs=dense1, rate=0.5, training=mode == tf.estimator.ModeKeys.TRAIN)
-
     dense2 = tf.layers.dense(inputs=dropout1, units=4096, activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
-
     dropout2 = tf.layers.dropout(inputs=dense2, rate=0.5, training=mode == tf.estimator.ModeKeys.TRAIN)
-
     logits = tf.layers.dense(inputs=dropout2, units=num_classes)
-
     predictions = {"probabilities": tf.sigmoid(logits, name="sigmoid_tensor")}
-
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
