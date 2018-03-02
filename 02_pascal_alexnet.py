@@ -49,12 +49,10 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     # Do data augmentation here !
     if mode == tf.estimator.ModeKeys.PREDICT:
         final_input = tf.map_fn(lambda im_tf: tf.image.central_crop(im_tf, float(0.875)), input_layer)
-        final_input = tf.map_fn(lambda im_tf: tf.image.per_image_standardization(im_tf), final_input)
 
     if mode == tf.estimator.ModeKeys.TRAIN:
         final_input = tf.map_fn(lambda im_tf: tf.image.random_flip_left_right(im_tf), input_layer)
         final_input = tf.map_fn(lambda im_tf: tf.random_crop(im_tf, size=[224,224,3]), final_input)
-        final_input = tf.map_fn(lambda im_tf: tf.image.per_image_standardization(im_tf), final_input)
 
     # AlexNet archirecture
     conv1 = tf.layers.conv2d(inputs=final_input, filters=96, kernel_size=[11, 11], strides=4, padding="valid", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))

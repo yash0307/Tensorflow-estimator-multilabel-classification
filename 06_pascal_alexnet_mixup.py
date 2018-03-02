@@ -60,7 +60,7 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
         final_input = tf.TensorArray(dtype=tf.float32, size=input_layer.shape[0], infer_shape=True)
         final_label = tf.TensorArray(dtype=tf.float32, size=input_layer.shape[0], infer_shape=True)
         batch_size = 10
-        alpha = 0.5
+        alpha = 0.1
         weights = np.random.beta(alpha, alpha, batch_size)
         for i in range(0, batch_size):
             lam_1 = tf.constant(float(weights[i]), dtype=tf.float32)

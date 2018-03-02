@@ -10,10 +10,13 @@ import argparse
 import os.path as osp
 from PIL import Image
 from functools import partial
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from eval import compute_map
 #import models
 
+plt.ioff()
 tf.logging.set_verbosity(tf.logging.INFO)
 
 CLASS_NAMES = [
@@ -49,12 +52,11 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     # Do data augmentation here !
     if mode == tf.estimator.ModeKeys.PREDICT:
         final_input = tf.map_fn(lambda im_tf: tf.image.central_crop(im_tf, float(0.875)), input_layer)
-        final_input = tf.map_fn(lambda im_tf: tf.image.per_image_standardization(im_tf), final_input)
 
     if mode == tf.estimator.ModeKeys.TRAIN:
         final_input = tf.map_fn(lambda im_tf: tf.image.random_flip_left_right(im_tf), input_layer)
         final_input = tf.map_fn(lambda im_tf: tf.random_crop(im_tf, size=[224,224,3]), final_input)
-        final_input = tf.map_fn(lambda im_tf: tf.image.per_image_standardization(im_tf), final_input)
+        tf.summary.image(name='train_images', tensor=final_input, max_outputs=10)
 
     # VGG16 archirecture
 

@@ -10,10 +10,12 @@ import argparse
 import os.path as osp
 from PIL import Image
 from functools import partial
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from eval import compute_map
 #import models
-
+plt.ioff()
 tf.logging.set_verbosity(tf.logging.INFO)
 
 CLASS_NAMES = [
@@ -39,6 +41,41 @@ CLASS_NAMES = [
     'tvmonitor',
 ]
 
+weight_vgg_map = {
+      'vgg_16/conv1/conv1_1/biases': 'conv1_1/bias',
+            'vgg_16/conv1/conv1_1/weights': 'conv1_1/kernel',
+            'vgg_16/conv1/conv1_2/biases': 'conv1_2/bias',
+            'vgg_16/conv1/conv1_2/weights': 'conv1_2/kernel',
+            'vgg_16/conv2/conv2_1/biases': 'conv2_1/bias',
+            'vgg_16/conv2/conv2_1/weights': 'conv2_1/kernel',
+            'vgg_16/conv2/conv2_2/biases': 'conv2_2/bias',
+            'vgg_16/conv2/conv2_2/weights': 'conv2_2/kernel',
+            'vgg_16/conv3/conv3_1/biases': 'conv3_1/bias',
+            'vgg_16/conv3/conv3_1/weights': 'conv3_1/kernel',
+            'vgg_16/conv3/conv3_2/biases': 'conv3_2/bias',
+            'vgg_16/conv3/conv3_2/weights': 'conv3_2/kernel',
+            'vgg_16/conv3/conv3_3/biases': 'conv3_3/bias',
+            'vgg_16/conv3/conv3_3/weights': 'conv3_3/kernel',
+            'vgg_16/conv4/conv4_1/biases': 'conv4_1/bias',
+            'vgg_16/conv4/conv4_1/weights': 'conv4_1/kernel',
+            'vgg_16/conv4/conv4_2/biases': 'conv4_2/bias',
+            'vgg_16/conv4/conv4_2/weights': 'conv4_2/kernel',
+            'vgg_16/conv4/conv4_3/biases': 'conv4_3/bias',
+            'vgg_16/conv4/conv4_3/weights': 'conv4_3/kernel',
+            'vgg_16/conv5/conv5_1/biases': 'conv5_1/bias',
+            'vgg_16/conv5/conv5_1/weights': 'conv5_1/kernel',
+            'vgg_16/conv5/conv5_2/biases': 'conv5_2/bias',
+            'vgg_16/conv5/conv5_2/weights': 'conv5_2/kernel',
+            'vgg_16/conv5/conv5_3/biases': 'conv5_3/bias',
+            'vgg_16/conv5/conv5_3/weights': 'conv5_3/kernel',
+            'vgg_16/fc6/biases': 'fc6/bias',
+            'vgg_16/fc6/weights': 'fc6/kernel',
+            'vgg_16/fc7/biases': 'fc7/bias',
+            'vgg_16/fc7/weights': 'fc7/kernel'}
+
+class RestoreHook(tf.train.SessionRunHook):
+    def begin(self):
+        tf.contrib.framework.init_from_checkpoint('./vgg_pretrained/vgg_16.ckpt', weight_vgg_map)
 
 def cnn_model_fn(features, labels, mode, num_classes=20):
 
@@ -58,41 +95,43 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     # VGG16 archirecture
 
     # Block - 1  
-    conv1 = tf.layers.conv2d(inputs=final_input, filters=64, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv2 = tf.layers.conv2d(inputs=conv1, filters=64, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
+    conv1 = tf.layers.conv2d(inputs=final_input, filters=64, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv1_1')
+    conv2 = tf.layers.conv2d(inputs=conv1, filters=64, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv1_2')
     pool1 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
 
     # Block - 2
-    conv3 = tf.layers.conv2d(inputs=pool1, filters=128, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv4 = tf.layers.conv2d(inputs=conv3, filters=128, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
+    conv3 = tf.layers.conv2d(inputs=pool1, filters=128, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv2_1')
+    conv4 = tf.layers.conv2d(inputs=conv3, filters=128, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv2_2')
     pool2 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
 
     # Block - 3
-    conv5 = tf.layers.conv2d(inputs=pool2, filters=256, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv6 = tf.layers.conv2d(inputs=conv5, filters=256, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv7 = tf.layers.conv2d(inputs=conv6, filters=256, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
+    conv5 = tf.layers.conv2d(inputs=pool2, filters=256, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv3_1')
+    conv6 = tf.layers.conv2d(inputs=conv5, filters=256, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv3_2')
+    conv7 = tf.layers.conv2d(inputs=conv6, filters=256, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv3_3')
     pool3 = tf.layers.max_pooling2d(inputs=conv7, pool_size=[2, 2], strides=2)
 
     # Block - 4
-    conv8 = tf.layers.conv2d(inputs=pool3, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv9 = tf.layers.conv2d(inputs=conv8, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv10 = tf.layers.conv2d(inputs=conv9, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
+    conv8 = tf.layers.conv2d(inputs=pool3, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv4_1')
+    conv9 = tf.layers.conv2d(inputs=conv8, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv4_2')
+    conv10 = tf.layers.conv2d(inputs=conv9, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv4_3')
     pool4 = tf.layers.max_pooling2d(inputs=conv10, pool_size=[2, 2], strides=2)
 
     # Block - 5 
-    conv11 = tf.layers.conv2d(inputs=pool4, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv12 = tf.layers.conv2d(inputs=conv11, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
-    conv13 = tf.layers.conv2d(inputs=conv12, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
+    conv11 = tf.layers.conv2d(inputs=pool4, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv5_1')
+    conv12 = tf.layers.conv2d(inputs=conv11, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv5_2')
+    conv13 = tf.layers.conv2d(inputs=conv12, filters=512, kernel_size=[3,3], padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='conv5_3')
     pool5 = tf.layers.max_pooling2d(inputs=conv13, pool_size=[2, 2], strides=2)
 
-    pool5_flat = tf.reshape(pool5, [-1, 7*7*512])
+    #pool5_flat = tf.reshape(pool5, [-1, 7*7*512])
+    #pool5_flat = tf.contrib.layers.flatten(pool5)
     # FC Layers
-    dense1 = tf.layers.dense(inputs=pool5_flat, units=4096, activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
+    dense1 = tf.layers.conv2d(inputs=pool5, filters=4096, kernel_size=[7,7], strides=1, activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='fc6', padding='valid')
     dropout1 = tf.layers.dropout(inputs=dense1, rate=0.5, training=mode == tf.estimator.ModeKeys.TRAIN)
-    dense2 = tf.layers.dense(inputs=dropout1, units=4096, activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer())
+    dense2 = tf.layers.conv2d(inputs=dropout1, filters=4096, kernel_size=[1,1], strides=1, activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.contrib.layers.xavier_initializer(), name='fc7', padding='valid')
     dropout2 = tf.layers.dropout(inputs=dense2, rate=0.5, training=mode == tf.estimator.ModeKeys.TRAIN)
 
-    logits = tf.layers.dense(inputs=dropout2, units=num_classes)
+    dropout2_flat = tf.reshape(dropout2, [-1, 4096])
+    logits = tf.layers.dense(inputs=dropout2_flat, units=num_classes, name='fc8_new')
     predictions = {"probabilities": tf.sigmoid(logits, name="sigmoid_tensor")}
 
 
@@ -104,7 +143,7 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
         tf.summary.scalar('Train Loss', loss)
-        lr = tf.train.exponential_decay(learning_rate=0.0001,global_step=tf.train.get_global_step(),decay_steps=1000,decay_rate=0.5, staircase=True)
+        lr = tf.train.exponential_decay(learning_rate=0.001,global_step=tf.train.get_global_step(),decay_steps=1000,decay_rate=0.5, staircase=True)
         tf.summary.scalar('Learning rate', lr)
         optimizer = tf.train.MomentumOptimizer(
                     learning_rate=lr,
@@ -199,7 +238,7 @@ def main():
     BATCH_SIZE = 10
 
 
-    map_list = np.zeros((40,1), dtype='float')
+    map_list = np.zeros((11,1), dtype='float')
 
     train_data, train_labels, train_weights = load_pascal(args.data_dir, split='trainval')
     eval_data, eval_labels, eval_weights = load_pascal(args.data_dir, split='test')
@@ -220,6 +259,9 @@ def main():
         num_epochs=None,
         shuffle=True)
 
+    # Load VGG pretrained weights
+    vgg_pretrained_weights = RestoreHook()
+     
     # Evaluate the model and print results
     eval_input_fn = tf.estimator.inputs.numpy_input_fn(
         x={"x": eval_data, "w": eval_weights},
@@ -227,14 +269,17 @@ def main():
         num_epochs=1,
         shuffle=False)
 
-    for given_iter in range(0,10):
-        pascal_classifier.train(input_fn=train_input_fn, steps=1000, hooks=[logging_hook])
+    for given_iter in range(0,11):
+        if given_iter == 0:
+            pascal_classifier.train(input_fn=train_input_fn, steps=400, hooks=[logging_hook, vgg_pretrained_weights])
+        else:
+            pascal_classifier.train(input_fn=train_input_fn, steps=400, hooks=[logging_hook])
         pred = list(pascal_classifier.predict(input_fn=eval_input_fn))
         pred = np.stack([p['probabilities'] for p in pred])
         AP = compute_map(eval_labels, pred, eval_weights, average=None)
         print('\nmAP : ' + str(np.mean(AP)) + '\n')
         map_list[given_iter] = np.mean(AP)
-    xx = range(1,41)
+    xx = range(1,12)
     plt.plot(xx, map_list, 'r--')
     plt.xlabel('i*1000 iterations')
     plt.ylabel('mAP')
