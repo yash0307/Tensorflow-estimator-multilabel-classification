@@ -291,7 +291,7 @@ def main():
     for i in sorted(CLASS_COLORS.keys()):
         given_patch = mpatches.Patch(color=CLASS_COLORS[i], label=i)
         list_patches.append(given_patch)
-    plt.legend(handles=list_patches, loc=7, bbox_to_anchor=(0.5,0.5))
+    plt.legend(handles=list_patches, loc=7, bbox_to_anchor=(0.1,0.5))
     fig.savefig('vgg_16_tsne.png')
 if __name__ == "__main__":
     main()
