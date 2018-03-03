@@ -60,7 +60,7 @@ def cnn_model_fn(features, labels, mode, num_classes=20):
         final_input = tf.map_fn(lambda im_tf: tf.random_crop(im_tf, size=[224,224,3]), final_input)
 
     # AlexNet archirecture
-    conv1 = tf.layers.conv2d(inputs=final_input, filters=96, kernel_size=[11, 11], strides=4, padding="valid", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01), name='conv1_1')
+    conv1 = tf.layers.conv2d(inputs=final_input, filters=96, kernel_size=[11, 11], strides=4, padding="valid", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
     pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[3, 3], strides=2)
     conv2 = tf.layers.conv2d(inputs=pool1, filters=256, kernel_size=[5, 5], strides=1, padding="same", activation=tf.nn.relu, use_bias=True, trainable=True, bias_initializer=tf.zeros_initializer(), kernel_initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
     pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[3, 3], strides=2)
@@ -198,32 +198,35 @@ def main():
         if given_iter == 0:
             pascal_classifier.train(input_fn=train_input_fn, steps=1)
             print([name for name, _ in list_variables(pascal_classifier.model_dir)])
-            weights = load_variable(pascal_classifier.model_dir, 'conv1_1/kernel')
+            weights = load_variable(pascal_classifier.model_dir, 'conv2d/kernel')
             f, axrr = plt.subplots(16,6)
             for i in range(0,96):
                 im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
+                axrr[int(i/6)][int(i%6)].axis('off')
                 axrr[int(i/6)][int(i%6)].imshow(im)
-            f.axis('off')
-            f.savefig('conv2d_1_'+str(given_iter)+'.png')
-        elif given_iter == 2:
+            plt.axis('off')
+            f.savefig('conv2d_'+str(given_iter)+'.png')
+        elif given_iter == 2 or given_iter == 1:
             pascal_classifier.train(input_fn=train_input_fn, steps=10000)
-            weights = load_variable(pascal_classifier.model_dir, 'conv1_1/kernel')
+            weights = load_variable(pascal_classifier.model_dir, 'conv2d/kernel')
             f, axarr = plt.subplots(16,6)
             for i in range(0,96):
                 im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
+                axrr[int(i/6)][int(i%6)].axis('off')
                 axrr[int(i/6)][int(i%6)].imshow(im)
-            f.axis('off')
-            f.savefig('conv2d_1_'+str(given_iter)+'.png')
+            plt.axis('off')
+            f.savefig('conv2d_'+str(given_iter)+'.png')
 
         else:
             pascal_classifier.train(input_fn=train_input_fn, steps=10000)
-    weights = load_variable(pascal_classifier.model_dir, 'conv1_1/kernel')
+    weights = load_variable(pascal_classifier.model_dir, 'conv2d/kernel')
     f, axarr = plt.subplots(16,6)
     for i in range(0,96):
         im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
+        axrr[int(i/6)][int(i%6)].axis('off')
         axrr[int(i/6)][int(i%6)].imshow(im)
-    f.axis('off')
-    f.savefig('conv1_1_final.png')
+    plt.axis('off')
+    f.savefig('conv2d_final.png')
     
 if __name__ == "__main__":
     main()
