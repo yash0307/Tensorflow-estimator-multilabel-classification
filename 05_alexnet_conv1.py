@@ -203,6 +203,7 @@ def main():
             for i in range(0,96):
                 im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
                 axrr[int(i/6)][int(i%6)].imshow(im)
+            f.axis('off')
             f.savefig('conv2d_1_'+str(given_iter)+'.png')
         elif given_iter == 2:
             pascal_classifier.train(input_fn=train_input_fn, steps=10000)
@@ -211,6 +212,7 @@ def main():
             for i in range(0,96):
                 im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
                 axrr[int(i/6)][int(i%6)].imshow(im)
+            f.axis('off')
             f.savefig('conv2d_1_'+str(given_iter)+'.png')
 
         else:
@@ -220,7 +222,8 @@ def main():
     for i in range(0,96):
         im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
         axrr[int(i/6)][int(i%6)].imshow(im)
-        f.savefig('conv1_1_final.png')
+    f.axis('off')
+    f.savefig('conv1_1_final.png')
     
 if __name__ == "__main__":
     main()
