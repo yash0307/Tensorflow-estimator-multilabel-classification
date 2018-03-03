@@ -199,27 +199,27 @@ def main():
             pascal_classifier.train(input_fn=train_input_fn, steps=1)
             print([name for name, _ in list_variables(pascal_classifier.model_dir)])
             weights = load_variable(pascal_classifier.model_dir, 'conv1_1/kernel')
-            f, axrr = plt.subplots(12,8)
+            f, axrr = plt.subplots(16,6)
             for i in range(0,96):
-                im = Image.fromarray(weights[:,:,:,i].astype('uint8')).convert('LA')
-                axrr[int(i/12)][int(i%12)].imshow(im)
+                im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
+                axrr[int(i/6)][int(i%6)].imshow(im)
             f.savefig('conv2d_1_'+str(given_iter)+'.png')
         elif given_iter == 2:
             pascal_classifier.train(input_fn=train_input_fn, steps=10000)
             weights = load_variable(pascal_classifier.model_dir, 'conv1_1/kernel')
-            f, axarr = plt.subplots(12,8)
+            f, axarr = plt.subplots(16,6)
             for i in range(0,96):
-                im = Image.fromarray(weights[:,:,:,i].astype('uint8')).convert('LA')
-                axrr[int(i/12)][int(i%12)].imshow(im)
+                im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
+                axrr[int(i/6)][int(i%6)].imshow(im)
             f.savefig('conv2d_1_'+str(given_iter)+'.png')
 
         else:
             pascal_classifier.train(input_fn=train_input_fn, steps=10000)
     weights = load_variable(pascal_classifier.model_dir, 'conv1_1/kernel')
-    f, axarr = plt.subplots(12,8)
+    f, axarr = plt.subplots(16,6)
     for i in range(0,96):
-        im = Image.fromarray(weights[:,:,:,i].astype('uint8')).convert('LA')
-        axrr[int(i/12)][int(i%12)].imshow(im)
+        im = Image.fromarray((weights[:,:,:,i]*255).astype('uint8')).resize((50,50)).convert('LA')
+        axrr[int(i/6)][int(i%6)].imshow(im)
         f.savefig('conv1_1_final.png')
     
 if __name__ == "__main__":
